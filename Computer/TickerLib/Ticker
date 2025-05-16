@@ -1,0 +1,120 @@
+local bridge = peripheral.find("meBridge")
+local monitor = peripheral.find("monitor")
+local w,h = monitor.getSize()
+
+local ccstr = require("cc.strings")
+
+local monitored_items = {
+    "minecraft:iron_ingot",
+    "minecraft:gold_ingot",
+    "minecraft:diamond",
+    "minecraft:redstone",
+    "minecraft:ender_pearl",
+    "ae2:certus_quartz_crystal",    
+}
+
+local prev = {}
+local cur = {}
+
+local lastUpdate = os.clock() -- in seconds
+local updateFreq = 60*5 -- every 5 mins
+local firstRun = true
+
+local function format_number(n)
+    local suffixes = {"", "k", "M", "B", "T"}
+    local i = 1
+    while n >= 1000 and i < #suffixes do
+      n = n / 1000
+      i = i + 1
+    end
+    return string.format("%.1f%s", n, suffixes[i])
+end
+
+-- Returns two arguments, the ticker name plus the up or down symbol and the coloring
+local function getTickerStr(itemTable, p, c)
+    percent = (c - p)*100 / p
+
+    firstWord = itemTable.displayName
+    percentStr = string.format("%.2f", percent) .. "%"
+    quantityStr = string.format(" %s \26 %s | ", format_number(p), format_number(c))
+
+    if percent <= -0.01 then
+        msg =  firstWord .. " \25" .. percentStr .. quantityStr -- #firstWord + 2 + #percentStr
+        coloring = string.rep("e", #msg - 2) .. "00"
+        return msg,coloring
+    elseif percent >= 0.01 then
+        msg =  firstWord .. " \24" .. percentStr .. quantityStr 
+        coloring = string.rep("d", #msg - 2) .. "00"
+        return msg,coloring
+    else
+        msg =  firstWord .. " \18" .. percentStr .. quantityStr 
+        coloring = string.rep("4", #msg - 2) .. "00"
+        return msg,coloring
+    end
+    return
+end
+
+local function getFullTape()
+    local textResult = ""
+    local colorResult = ""
+    for i,itemReg in pairs(monitored_items) do
+        local itemTable = bridge.getItem({name = itemReg})
+
+        cur[itemReg] = itemTable.amount or 0
+        if (os.clock() - lastUpdate) > updateFreq then
+            lastUpdate = os.clock()
+            prev[itemReg] = cur[itemReg] or 0
+        end
+
+        --print("cur[itemReg]: ", cur[itemReg]," ","prev[itemReg]: ", prev[itemReg] )
+
+        local text, color = getTickerStr(itemTable, prev[itemReg], cur[itemReg])
+        
+        textResult = textResult .. text
+        colorResult = colorResult .. color
+    end
+
+    return textResult, colorResult
+end
+local function scrollText(text, coloring)
+    local w,h = monitor.getSize()
+
+    local x = w
+    monitor.setTextScale(5)
+    monitor.clear()
+
+    time = textutils.formatTime(os.time("local"))
+    formattedTime = string.rep(" ", (w - #time) / 2 ) .. time
+    text = text .. formattedTime
+    coloring = coloring .. string.rep(1,#formattedTime)
+
+    while true do
+        monitor.setCursorPos(x,1)
+        monitor.blit(text, coloring, string.rep("f",#text))
+        x = x - 1
+        
+        if x < (#text - #text*2 + (w + #time + 2)/2) then
+                sleep(0.75)
+                break
+        end
+        os.sleep(0.15)
+        monitor.clear()
+    end
+end
+
+local function init()
+    for i,k in pairs(monitored_items) do
+        print(k)
+        amount = bridge.getItem({name = k}).amount
+        prev[k] = amount
+        cur[k] = amount
+    end
+end
+
+
+init()
+while true do
+    local text,coloring = getFullTape()
+    scrollText(text, coloring)
+end
+

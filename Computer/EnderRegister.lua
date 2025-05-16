@@ -1,0 +1,6 @@
+local chatter = peripheral.find("chatBox")
+local db = peripheral.find("nbtStorage")
+db.writeJson("{'test':1}")
+db.writeJson("{'abc':'a'}")
+print(textutils.serialise(db.read()))
+chatter.sendToastToPlayer("You're so skibidi","Obamna", "Auraboros_42", "&4&lMad bro?","()","&c&l")

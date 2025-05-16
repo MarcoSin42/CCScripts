@@ -1,0 +1,165 @@
+local meBridge = peripheral.find("meBridge")
+
+local items,_ = meBridge.listItems()
+local toolOutput = "south"
+local bookOutput = "up"
+local nbtLookup = {}
+
+local function valIsInTable(val, inpTable)
+    for k,v in pairs(inpTable) do
+        if v == val then
+            return true
+        end
+    end
+    return false
+end
+
+local function decrAmt(enchant, lvl, amt)
+    nbtLookup[enchant][lvl].amount = nbtLookup[enchant][lvl].amount - amt
+end
+
+local function getEnchantId(itemTable)
+    return itemTable["nbt"]["tag"]["StoredEnchantments"][1]["id"]
+end
+
+local function getBookLevel(itemTable)
+    return itemTable["nbt"]["tag"]["StoredEnchantments"][1]["lvl"]
+end
+
+local function getFingerprint(itemTable)
+    return itemTable["fingerprint"]
+end
+
+local function getEnchant(itemTable)
+    return require "cc.strings".split(getEnchantId(itemTable),":")[2]
+end
+
+local function getEnchantAmount(enchant, lvl)
+    return nbtLookup[enchant][lvl].amount or 0
+end
+
+local function getToolForEnchant(enchantS)
+    pickaxe = {"unbreaking", "efficiency", "fortune"}
+    sword = {"sharpness", "looting", "reaper_enchantment", "withering"}
+    bow = {"power"}
+
+    toolTable = {pickaxe=pickaxe, sword=sword, bow=bow}
+    for tool,toolEnchants in pairs(toolTable) do
+        --print(tool)
+        --print(textutils.serialise(toolEnchants))
+        if valIsInTable(enchantS, toolEnchants) then
+            return tool
+        end
+    end
+
+    return nil
+end
+
+local function getTableForEnchant(enchant)
+    return nbtLookup[enchant]
+end
+
+local function exportEnchant(enchantS, lvlI)
+    fingerprint = nbtLookup[enchantS][lvlI]["fingerprint"]
+    bookToExport = {name="minecraft:enchanted_book", count=1, fingerprint=fingerprint}
+    tool = getToolForEnchant(enchantS)
+    print(tool)
+
+    if tool == "pickaxe" then
+        itemToExport = {name="minecraft:wooden_pickaxe", count=1}
+        meBridge.exportItem(itemToExport, toolOutput)
+    elseif tool == "sword" then
+        itemToExport = {name="minecraft:wooden_sword", count=1}
+        meBridge.exportItem(itemToExport, toolOutput)
+    elseif tool == "bow" then
+        itemToExport = {name="minecraft:bow", count=1}
+        meBridge.exportItem(itemToExport, toolOutput)
+    end
+    
+    booksExported = meBridge.exportItem(bookToExport, bookOutput)
+    booksExported = booksExported + meBridge.exportItem(bookToExport, toolOutput)
+    decrAmt(enchantS, lvlI, booksExported)
+
+end
+
+local function getEnchantNbt(enchantS, lvlI)
+    return nbtLookup[enchantS][lvlI]["nbt"]
+end
+
+local function getEnchantFinger(enchantS, lvlI)
+    return nbtLookup[enchantS][lvlI]["fingerprint"]
+end
+
+local function getMaxEnchant(enchantS)
+    maxLevel = -1
+    for lvl,_ in pairs(nbtLookup[enchantS]) do
+        amount = getEnchantAmount(encantS, lvl)
+        if lvl > maxLevel and amount > 1 then
+            maxLevel = lvl
+        end
+    end
+    return (maxLevel == -1) and nil or maxLevel
+end
+
+local function getMinEnchant(enchantS)
+    minLevel = 999
+    nbtLookup[enchantS] = nbtLookup[enchantS] or {}
+    for lvl,_ in pairs(nbtLookup[enchantS]) do
+        amount = getEnchantAmount(enchantS, lvl)
+        if lvl < minLevel and amount > 1 then
+            minLevel = lvl
+        end
+    end
+    if minLevel == 999 then
+        return nil
+    end
+    return minLevel
+end
+
+local function isEnchanted(itemTable)
+    return itemTable["nbt"] ~= nil
+end
+
+local function getEnchantData(enchant, lvl)
+    return nbtLookup[enchant][lvl]
+end
+
+local function refreshTable()
+    items,_ = meBridge.listItems()
+    nbtLookup = {}
+
+    for k,v in pairs(items) do
+        local item,_ = meBridge.getItem(v)
+
+        if v["name"] == "minecraft:enchanted_book" and item then
+            amount = item.amount
+            enchantId = getEnchantId(item)
+            enchant = getEnchant(item)
+            bookLvl = getBookLevel(item)
+            nbt = item["nbt"]
+            --print("Enchant added to DB: ", enchant)
+
+            nbtLookup[enchant] = nbtLookup[enchant] or {}
+            enchantData = {amount=amount, id=enchantId, nbt = nbt, fingerprint=item["fingerprint"]}
+
+            nbtLookup[enchant][bookLvl] = enchantData
+        end
+    end
+    
+    for enchant,_ in pairs(nbtLookup) do
+        print("Enchant added to DB: ", enchant)
+    end
+end
+
+return {
+    getTable = getTable,
+    refreshTable = refreshTable,
+    getMaxEnchant = getMaxEnchant,
+    getMinEnchant = getMinEnchant,
+    getEnchantId = getEnchantId,
+    getEnchant = getEnchant,
+    getEnchantNbt = getEnchantNbt,
+    getEnchantFinger = getEnchantFinger,
+    isEnchanted = isEnchanted,
+    exportEnchant = exportEnchant,
+}

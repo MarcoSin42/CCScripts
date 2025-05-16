@@ -1,0 +1,18 @@
+local bridge = peripheral.find("meBridge")
+local bookLib = require("bookDB")
+bookLib.refreshTable()
+
+condenseList = {"efficiency","sharpness","power","looting","fortune","reaper_enchantment"}
+while true do
+    for i,enchant in pairs(condenseList) do
+        os.sleep(3.5)
+        minEnchant = bookLib.getMinEnchant(enchant)
+        if minEnchant ~= nil then
+            print("Condensing: ", enchant, minEnchant)
+            bookLib.exportEnchant(enchant, minEnchant)
+        elseif i >= #condenseList then
+            bookLib.refreshTable()
+        end
+    end
+end
+
