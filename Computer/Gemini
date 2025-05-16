@@ -1,0 +1,42 @@
+local chatter = peripheral.find("chatBox") or error("Failed to find chatbox")
+local apiFile = fs.open("api_key", "r") or error("Failed to find API key")
+local api_key = apiFile.readLine()
+apiFile.close()
+local base_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" .. api_key
+local headers = {
+    ["Content-Type"] = "application/json"
+}
+
+local OG_context = "You are Gemini, players may choose to rename you and you should respond to that.  People's name's will be enclosed in [Player] [Player], for example, for the person 'Marco', their name would be formatted like so: '[Player]Marco[Player]: <Marco's Message>', use the person's name if appropriate.  Likewise, your responses will be formatted like:  '[Gemini]: <Gemini's message>'.  Here is a context for a conversation between you and potentially multiple people.  "
+local context = OG_context
+
+while true do
+    local event,user, msg, _, _ = os.pullEvent("chat")
+
+    if string.find(msg, "gemini") or string.find(msg,"Gemini") then
+        msg = context ..  msg
+
+        if (#msg > 1000000/3) then
+            chatter.sendFormattedMessage(textutils.serialiseJSON({text = "Context too large.  Restarting context. :( Amensia", color = "aqua", prefix="Gemini",brackets="<>", bracketColor="orange"}))
+            context = OG_context
+        end
+
+        local payload = textutils.serialiseJSON({
+            contents = {{parts = {
+                {text = msg}
+            }}}
+        })
+
+        local response = http.post(base_url, payload, headers)
+        local serializedJSON = response.readAll()
+        local bodyTable = textutils.unserialiseJSON(serializedJSON)
+        local reply = string.gsub(textutils.serialise(bodyTable.candidates[1].content.parts[1].text), "\\", "")
+        
+        local replyTable = {text = reply, color = "aqua", prefix="Gemini",brackets="<>", bracketColor="orange"}
+        local json = textutils.serialiseJSON(replyTable)
+        
+        chatter.sendFormattedMessage(json)
+
+        context = context .. "[Player]" .. user .. "[Player]: " .. "<" .. msg .. ">" .. "[Gemini]: " .. reply
+    end
+end
